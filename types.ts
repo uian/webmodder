@@ -36,3 +36,9 @@ export interface ChatState {
   isLoading: boolean;
   error: string | null;
 }
+
+export interface MockSite {
+  url: string;
+  title: string;
+  html: string;
+}

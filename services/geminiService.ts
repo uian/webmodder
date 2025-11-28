@@ -3,10 +3,11 @@ import { GeneratedFile, ModType, AppMode } from "../types";
 
 const GENERATOR_INSTRUCTION = `
 You are an expert Senior Frontend Engineer and Browser Extension Developer. 
-Your goal is to help users modify web pages by generating Chrome Extensions (Manifest V3), UserScripts (Tampermonkey), or Stylus CSS.
+Your goal is to help users modify the *currently active webpage* by generating Chrome Extensions (Manifest V3), UserScripts (Tampermonkey), or Stylus CSS.
 
-When a user provides a screenshot or HTML snippet, analyze it to understand the DOM structure, classes, and IDs.
-Then, generate the necessary code to achieve the user's requested modification.
+CONTEXT:
+You have access to the full HTML source code of the page the user is viewing (provided in the prompt).
+Use this source code to identify exact class names, IDs, and DOM structures.
 
 OUTPUT FORMAT:
 You must return a JSON object with the following structure:
@@ -18,41 +19,38 @@ You must return a JSON object with the following structure:
 }
 
 RULES:
-1. For Chrome Extensions, always include 'manifest.json' (V3) and necessary content scripts/styles.
-2. For UserScripts, include the metadata block headers (// ==UserScript== ...).
-3. Ensure selector specificity is high enough to override existing styles/scripts.
-4. If the user provides an image, use visual analysis to infer likely class names or structure if they are not explicitly visible, but prefer generic robust selectors (e.g., attribute selectors, structural pseudo-classes) if exact IDs are unknown.
-5. Code must be production-ready, safe, and clean.
+1. **Analyze the provided HTML context deeply.** Use specific selectors (e.g., '.dashboard-grid .card') found in the source.
+2. If the user wants to *modify* the page, provide CSS or JS that can be directly injected.
+3. For Chrome Extensions, include 'manifest.json'.
+4. For UserScripts, include metadata headers.
+5. Make your code robust and production-ready.
 `;
 
 const INSPECTOR_INSTRUCTION = `
 You are an expert Senior Technical Architect.
-Your task is to analyze web features from screenshots or descriptions and explain their inner workings to a developer.
+Your task is to analyze the *currently active webpage* based on its Source Code and User Request.
+
+CONTEXT:
+You have access to the full HTML source code of the page. 
+You act as if you are "inside" the browser, reading the live DOM.
 
 SCENARIO:
-If a user asks "How does this feature work?" (e.g., a "Save to GitHub" button):
+If a user asks "How does this feature work?", analyze the provided HTML/JS context to explain it.
 
 1. **Technology Stack Analysis**:
-   - Identify likely frameworks (React, Vue, etc.) and CSS libraries (Tailwind, Bootstrap).
-   - Infer APIs used (e.g., GitHub REST API, OAuth 2.0, Firebase Auth).
+   - Identify frameworks (React, Vue, Tailwind, etc.) based on class names (e.g., 'cls-1', 'bg-blue-500') or structure.
    
-2. **Workflow Breakdown**:
-   - Trace the lifecycle: Click Event -> Data Preparation -> API Request (Headers/Auth) -> Response Handling -> UI Update.
+2. **Workflow & Logic**:
+   - Trace how elements interact based on the DOM structure (e.g., forms, buttons with IDs).
    
 3. **Implementation Guide**:
-   - Generate a markdown file ('analysis.md') explaining the above clearly with sections: "Technology Stack", "Workflow Steps", "Code Analysis".
-   - Generate a pseudo-code file ('implementation.js') showing the core logic.
+   - Generate a markdown analysis.
 
 OUTPUT FORMAT:
 {
-  "explanation": "Brief summary of the technology.",
+  "explanation": "Brief summary.",
   "files": [
-    { 
-      "name": "analysis.md", 
-      "language": "markdown", 
-      "content": "# Technical Analysis\n\n## 1. Technology Stack\n...\n\n## 2. Workflow & Mechanics\n..." 
-    },
-    { "name": "implementation.js", "language": "javascript", "content": "..." }
+    { "name": "analysis.md", "language": "markdown", "content": "..." }
   ]
 }
 `;
@@ -60,6 +58,7 @@ OUTPUT FORMAT:
 export const generateModificationCode = async (
   prompt: string,
   imageBase64: string | undefined,
+  pageContext: string | undefined,
   modType: ModType,
   appMode: AppMode
 ): Promise<{ explanation: string; files: GeneratedFile[] }> => {
@@ -73,12 +72,19 @@ export const generateModificationCode = async (
   const isInspector = appMode === AppMode.INSPECTOR;
   const systemInstruction = isInspector ? INSPECTOR_INSTRUCTION : GENERATOR_INSTRUCTION;
 
+  // We truncate pageContext if it's massive, but Gemini 2.5 has a huge window so ~50k chars is fine.
+  const contextSnippet = pageContext ? pageContext.substring(0, 100000) : "No page context available.";
+
   const fullPrompt = `
-    User Request: ${prompt}
-    Current Mode: ${appMode}
-    ${!isInspector ? `Target Output Type: ${modType}` : ''}
+    USER REQUEST: ${prompt}
+    CURRENT APP MODE: ${appMode}
+    ${!isInspector ? `TARGET OUTPUT TYPE: ${modType}` : ''}
     
-    ${imageBase64 ? "I have attached a screenshot of the webpage/feature." : ""}
+    --- START OF ACTIVE BROWSER TAB SOURCE CODE ---
+    ${contextSnippet}
+    --- END OF SOURCE CODE ---
+
+    ${imageBase64 ? "Note: User also attached a screenshot for visual context." : ""}
   `;
 
   const parts: any[] = [{ text: fullPrompt }];
