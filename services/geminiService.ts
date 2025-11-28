@@ -1,7 +1,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { GeneratedFile, ModType } from "../types";
+import { GeneratedFile, ModType, AppMode } from "../types";
 
-const SYSTEM_INSTRUCTION = `
+const GENERATOR_INSTRUCTION = `
 You are an expert Senior Frontend Engineer and Browser Extension Developer. 
 Your goal is to help users modify web pages by generating Chrome Extensions (Manifest V3), UserScripts (Tampermonkey), or Stylus CSS.
 
@@ -25,10 +25,32 @@ RULES:
 5. Code must be production-ready, safe, and clean.
 `;
 
+const INSPECTOR_INSTRUCTION = `
+You are an expert Senior Frontend Engineer and Technical Architect.
+Your goal is to reverse-engineer and explain how specific web features likely work based on visual cues or descriptions provided by the user.
+
+When a user asks about a feature (e.g., "How does the Save to GitHub button work?" or "Analyze this checkout flow"):
+1. Analyze the visual context (screenshot) if provided. Identify frameworks (React, Vue, etc.) and UI libraries (Tailwind, Material UI) if recognizable.
+2. Explain the likely Technical Implementation. (e.g., "This likely uses the GitHub REST API via OAuth flow...").
+3. Break down the Workflow/Process (e.g., "1. User clicks, 2. Event Listener triggers, 3. API Call...").
+4. Provide the detailed technical explanation in a markdown file named 'analysis.md'.
+5. If helpful, include a 'pseudo_implementation.js' file showing how one might implement this feature.
+
+OUTPUT FORMAT:
+{
+  "explanation": "A summary of the analysis.",
+  "files": [
+    { "name": "analysis.md", "language": "markdown", "content": "# Technical Analysis\n\n..." },
+    { "name": "pseudo_implementation.js", "language": "javascript", "content": "..." } 
+  ]
+}
+`;
+
 export const generateModificationCode = async (
   prompt: string,
   imageBase64: string | undefined,
-  modType: ModType
+  modType: ModType,
+  appMode: AppMode
 ): Promise<{ explanation: string; files: GeneratedFile[] }> => {
   const apiKey = process.env.API_KEY;
   if (!apiKey) {
@@ -37,11 +59,15 @@ export const generateModificationCode = async (
 
   const ai = new GoogleGenAI({ apiKey });
 
+  const isInspector = appMode === AppMode.INSPECTOR;
+  const systemInstruction = isInspector ? INSPECTOR_INSTRUCTION : GENERATOR_INSTRUCTION;
+
   const fullPrompt = `
     User Request: ${prompt}
-    Target Output Type: ${modType}
+    Current Mode: ${appMode}
+    ${!isInspector ? `Target Output Type: ${modType}` : ''}
     
-    ${imageBase64 ? "I have attached a screenshot of the webpage. Use this to identify elements, colors, and layout structure to target." : ""}
+    ${imageBase64 ? "I have attached a screenshot of the webpage/feature." : ""}
   `;
 
   const parts: any[] = [{ text: fullPrompt }];
@@ -49,7 +75,7 @@ export const generateModificationCode = async (
   if (imageBase64) {
     parts.push({
       inlineData: {
-        mimeType: "image/png", // Assuming PNG for simplicity, usually safe for base64
+        mimeType: "image/png",
         data: imageBase64,
       },
     });
@@ -57,13 +83,13 @@ export const generateModificationCode = async (
 
   try {
     const response = await ai.models.generateContent({
-      model: imageBase64 ? "gemini-2.5-flash" : "gemini-2.5-flash", // Use flash for speed, it handles vision well
+      model: "gemini-2.5-flash",
       contents: {
         role: "user",
         parts: parts
       },
       config: {
-        systemInstruction: SYSTEM_INSTRUCTION,
+        systemInstruction: systemInstruction,
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,

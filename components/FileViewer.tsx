@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { GeneratedFile } from '../types';
-import { Copy, Download, FileJson, FileCode, FileType } from 'lucide-react';
+import { Copy, Download, FileJson, FileCode, FileType, Github } from 'lucide-react';
 
 interface FileViewerProps {
   files: GeneratedFile[];
@@ -30,10 +30,15 @@ const FileViewer: React.FC<FileViewerProps> = ({ files }) => {
     URL.revokeObjectURL(url);
   };
 
+  const handleGithubSave = () => {
+    alert("This feature would utilize the GitHub Gist API.\n\nWorkflow:\n1. OAuth with GitHub.\n2. POST /gists with file content.\n3. Return Gist URL.");
+  };
+
   const getIcon = (name: string) => {
     if (name.endsWith('.json')) return <FileJson size={14} className="mr-1" />;
     if (name.endsWith('.js')) return <FileCode size={14} className="mr-1" />;
     if (name.endsWith('.css')) return <FileType size={14} className="mr-1" />;
+    if (name.endsWith('.md')) return <FileCode size={14} className="mr-1" />;
     return <FileCode size={14} className="mr-1" />;
   };
 
@@ -60,6 +65,13 @@ const FileViewer: React.FC<FileViewerProps> = ({ files }) => {
       <div className="relative flex-1 bg-gray-950 overflow-hidden">
         {/* Actions Toolbar */}
         <div className="absolute top-2 right-2 flex space-x-2 z-10">
+          <button 
+            onClick={handleGithubSave}
+            className="p-1.5 bg-gray-800 text-gray-400 rounded hover:bg-[#2dba4e] hover:text-white transition-colors"
+            title="Save to GitHub Gist"
+          >
+            <Github size={16} />
+          </button>
           <button 
             onClick={handleCopy}
             className="p-1.5 bg-gray-800 text-gray-400 rounded hover:bg-gray-700 hover:text-white transition-colors"

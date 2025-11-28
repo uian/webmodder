@@ -4,6 +4,11 @@ export enum ModType {
   CSS_ONLY = 'CSS_ONLY'
 }
 
+export enum AppMode {
+  GENERATOR = 'GENERATOR',
+  INSPECTOR = 'INSPECTOR'
+}
+
 export interface GeneratedFile {
   name: string;
   language: 'json' | 'javascript' | 'css' | 'html' | 'markdown';
