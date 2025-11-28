@@ -1,0 +1,5 @@
+{
+  "name": "Web Modder AI",
+  "description": "An AI-powered workbench to analyze web pages via screenshots or HTML and generate Chrome Extensions or UserScripts to modify them.",
+  "requestFramePermissions": []
+}
