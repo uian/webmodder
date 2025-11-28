@@ -10,7 +10,7 @@ const App: React.FC = () => {
     {
       id: 'welcome',
       role: 'assistant',
-      text: "Hello! I'm your Web Modder AI.\n\nI can help you:\n1. Create Chrome Extensions or UserScripts to modify websites.\n2. Analyze and explain how specific web features work (Inspector Mode).\n\nSelect a mode and describe what you need!"
+      text: "Hello! I'm your Web Modder AI.\n\nI can help you:\n1. **Build Mods**: Create Chrome Extensions or UserScripts.\n2. **Inspector Mode**: Upload a screenshot of any feature (like the 'Save to GitHub' button) and I'll explain its Tech Stack and Workflow.\n\nSelect a mode to get started!"
     }
   ]);
   const [input, setInput] = useState('');
