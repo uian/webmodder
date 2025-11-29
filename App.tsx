@@ -1,183 +1,21 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Send, Image as ImageIcon, Code, Monitor, Loader2, Info, Search, Wrench, Globe, X, LayoutTemplate } from 'lucide-react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { Send, Image as ImageIcon, Monitor, Loader2, X, LayoutTemplate, Globe, AlertTriangle } from 'lucide-react';
 import { Message, ModificationProject, ModType, AppMode, MockSite } from './types';
 import { generateModificationCode } from './services/geminiService';
 import FileViewer from './components/FileViewer';
 import ChatBubble from './components/ChatBubble';
 import BrowserFrame from './components/BrowserFrame';
 
-// --- MOCK SITES DEFINITION ---
-const MOCK_SITES: Record<string, MockSite> = {
-  'https://analytics.demo.com/dashboard': {
-    url: 'https://analytics.demo.com/dashboard',
-    title: 'Analytics Pro Dashboard',
-    html: `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Analytics Pro</title>
-        <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-      </head>
-      <body class="bg-gray-50">
-        <nav class="bg-indigo-600 text-white p-4 shadow-lg">
-          <div class="container mx-auto flex justify-between items-center">
-            <div class="font-bold text-xl flex items-center"><span class="mr-2">📊</span> Analytics Pro</div>
-            <div class="space-x-6 text-sm font-medium">
-              <a href="#" class="opacity-100 hover:text-white">Dashboard</a>
-              <a href="#" class="opacity-75 hover:opacity-100 transition">Reports</a>
-              <a href="#" class="opacity-75 hover:opacity-100 transition">Settings</a>
-            </div>
-            <div class="bg-indigo-700 px-3 py-1 rounded-md text-xs">Trial: 12 days left</div>
-          </div>
-        </nav>
-        
-        <div class="container mx-auto p-8">
-          <div class="flex justify-between items-end mb-8">
-            <div>
-              <h1 class="text-3xl font-bold text-gray-800">Overview</h1>
-              <p class="text-gray-500 mt-1">Welcome back, Developer.</p>
-            </div>
-            <button class="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded shadow-sm hover:bg-gray-50 text-sm font-medium transition">
-              📅 Last 30 Days
-            </button>
-          </div>
-          
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition card-stat">
-              <div class="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-2">Total Revenue</div>
-              <div class="text-3xl font-extrabold text-gray-900">$48,294</div>
-              <div class="text-green-500 text-xs font-medium mt-2 flex items-center">
-                <span>▲ 12%</span> <span class="text-gray-400 ml-1">vs last month</span>
-              </div>
-            </div>
-            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition card-stat">
-              <div class="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-2">Active Users</div>
-              <div class="text-3xl font-extrabold text-gray-900">12,403</div>
-              <div class="text-green-500 text-xs font-medium mt-2 flex items-center">
-                <span>▲ 5.4%</span> <span class="text-gray-400 ml-1">vs last month</span>
-              </div>
-            </div>
-            <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition card-stat">
-              <div class="text-gray-400 text-xs font-semibold uppercase tracking-wider mb-2">Bounce Rate</div>
-              <div class="text-3xl font-extrabold text-gray-900">42.3%</div>
-              <div class="text-red-500 text-xs font-medium mt-2 flex items-center">
-                <span>▼ 1.2%</span> <span class="text-gray-400 ml-1">vs last month</span>
-              </div>
-            </div>
-          </div>
-          
-          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-             <div class="lg:col-span-2 bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-               <div class="flex justify-between items-center mb-6">
-                 <h3 class="font-bold text-gray-800">Traffic Source</h3>
-                 <button class="text-indigo-600 text-xs font-bold hover:underline" id="export-btn">Export Data</button>
-               </div>
-               <div class="space-y-4">
-                 <div class="relative pt-1">
-                   <div class="flex mb-2 items-center justify-between">
-                     <div class="text-xs font-semibold py-1 px-2 uppercase rounded-full text-indigo-600 bg-indigo-200">Direct</div>
-                     <div class="text-right text-xs font-semibold inline-block text-indigo-600">60%</div>
-                   </div>
-                   <div class="overflow-hidden h-2 mb-4 text-xs flex rounded bg-indigo-100">
-                     <div style="width:60%" class="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-indigo-500"></div>
-                   </div>
-                 </div>
-                 <div class="relative pt-1">
-                   <div class="flex mb-2 items-center justify-between">
-                     <div class="text-xs font-semibold py-1 px-2 uppercase rounded-full text-green-600 bg-green-200">Social</div>
-                     <div class="text-right text-xs font-semibold inline-block text-green-600">30%</div>
-                   </div>
-                   <div class="overflow-hidden h-2 mb-4 text-xs flex rounded bg-green-100">
-                     <div style="width:30%" class="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-green-500"></div>
-                   </div>
-                 </div>
-               </div>
-             </div>
-             
-             <div class="bg-indigo-900 text-white p-6 rounded-xl shadow-lg relative overflow-hidden">
-               <div class="relative z-10">
-                 <h3 class="font-bold text-lg mb-2">Upgrade to Pro</h3>
-                 <p class="text-indigo-200 text-sm mb-4">Get access to advanced analytics and custom reports.</p>
-                 <button class="w-full bg-white text-indigo-900 font-bold py-2 rounded hover:bg-indigo-50 transition">Upgrade Now</button>
-               </div>
-               <div class="absolute -bottom-10 -right-10 w-40 h-40 bg-indigo-800 rounded-full opacity-50"></div>
-             </div>
-          </div>
-        </div>
-      </body>
-      </html>
-    `
-  },
-  'https://shop.demo.com/products': {
-    url: 'https://shop.demo.com/products',
-    title: 'Modern Shop Demo',
-    html: `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>Modern Shop</title>
-        <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-      </head>
-      <body class="bg-white">
-        <header class="border-b sticky top-0 bg-white z-50">
-          <div class="container mx-auto px-6 py-3 flex justify-between items-center">
-            <div class="text-2xl font-bold text-gray-800">SHOP.</div>
-            <nav class="space-x-4 text-gray-600">
-              <a href="#" class="text-black font-semibold">New Arrivals</a>
-              <a href="#">Men</a>
-              <a href="#">Women</a>
-              <a href="#">Accessories</a>
-            </nav>
-            <div class="flex items-center space-x-4">
-              <button class="text-gray-600">Search</button>
-              <button class="text-gray-600">Cart (0)</button>
-            </div>
-          </div>
-        </header>
-
-        <div class="container mx-auto px-6 py-12">
-           <h2 class="text-3xl font-bold mb-8 text-center">Trending Now</h2>
-           <div class="grid grid-cols-1 md:grid-cols-3 gap-10">
-              <!-- Product 1 -->
-              <div class="group cursor-pointer product-card">
-                 <div class="bg-gray-100 h-80 rounded-lg mb-4 flex items-center justify-center relative overflow-hidden">
-                    <span class="text-gray-400 text-4xl font-light">Image</span>
-                    <div class="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition duration-300"></div>
-                    <button class="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-white text-black px-6 py-2 rounded-full shadow opacity-0 group-hover:opacity-100 transition duration-300 transform translate-y-4 group-hover:translate-y-0">Quick Add</button>
-                 </div>
-                 <h3 class="font-bold text-lg">Essential Tee</h3>
-                 <p class="text-gray-500">$24.00</p>
-              </div>
-              
-              <!-- Product 2 -->
-              <div class="group cursor-pointer product-card">
-                 <div class="bg-gray-100 h-80 rounded-lg mb-4 flex items-center justify-center relative overflow-hidden">
-                    <span class="text-gray-400 text-4xl font-light">Image</span>
-                     <div class="absolute top-4 left-4 bg-red-500 text-white text-xs font-bold px-2 py-1 rounded">SALE</div>
-                 </div>
-                 <h3 class="font-bold text-lg">Cargo Pants</h3>
-                 <p class="text-gray-500"><span class="line-through mr-2 text-gray-400">$85.00</span>$64.00</p>
-              </div>
-
-              <!-- Product 3 -->
-              <div class="group cursor-pointer product-card">
-                 <div class="bg-gray-100 h-80 rounded-lg mb-4 flex items-center justify-center relative overflow-hidden">
-                    <span class="text-gray-400 text-4xl font-light">Image</span>
-                 </div>
-                 <h3 class="font-bold text-lg">Oversized Hoodie</h3>
-                 <p class="text-gray-500">$55.00</p>
-              </div>
-           </div>
-        </div>
-      </body>
-      </html>
-    `
-  }
-};
+const DEFAULT_URL = 'https://www.wikipedia.org/';
 
 const App: React.FC = () => {
-  // State
-  const [activeSiteKey, setActiveSiteKey] = useState<string>(Object.keys(MOCK_SITES)[0]);
+  // Navigation & Content State
+  const [currentUrl, setCurrentUrl] = useState(DEFAULT_URL);
+  const [htmlContent, setHtmlContent] = useState<string>('');
+  const [isUrlLoading, setIsUrlLoading] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
+  // App State
   const [injectedCss, setInjectedCss] = useState('');
   const [injectedJs, setInjectedJs] = useState('');
   
@@ -185,7 +23,7 @@ const App: React.FC = () => {
     {
       id: 'welcome',
       role: 'assistant',
-      text: "I'm connected to the browser. I can read the code of the page you are viewing.\n\nTry asking:\n- 'Change the nav bar color to black'\n- 'How does the export button work?'\n- 'Hide the upgrade banner'"
+      text: "I'm ready to analyze real websites.\n\nEnter a URL in the browser bar above, or paste HTML directly if you are analyzing a local or authenticated page.\n\nTry asking:\n- 'Make the background dark mode'\n- 'Explain how the search bar works'"
     }
   ]);
   const [input, setInput] = useState('');
@@ -210,7 +48,74 @@ const App: React.FC = () => {
     scrollToBottom();
   }, [messages]);
 
-  const activeSite = MOCK_SITES[activeSiteKey];
+  // --- Real Website Fetching Logic ---
+  const loadUrl = async (url: string) => {
+    if (!url) return;
+    
+    // Basic URL formatting
+    let targetUrl = url;
+    if (!targetUrl.startsWith('http')) {
+      targetUrl = 'https://' + targetUrl;
+    }
+
+    setIsUrlLoading(true);
+    setFetchError(null);
+    setCurrentUrl(targetUrl);
+
+    try {
+      // Use a CORS proxy to fetch the HTML content
+      const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
+      const response = await fetch(proxyUrl);
+      const data = await response.json();
+      
+      if (data.contents) {
+        // We must inject a <base> tag so relative links (images, css) work
+        const baseTag = `<base href="${targetUrl}" target="_self" />`;
+        let processedHtml = data.contents;
+        
+        // Simple injection of base tag into head
+        if (processedHtml.includes('<head>')) {
+            processedHtml = processedHtml.replace('<head>', `<head>${baseTag}`);
+        } else {
+            processedHtml = `${baseTag}${processedHtml}`;
+        }
+        
+        setHtmlContent(processedHtml);
+        // Reset injections on new page load
+        setInjectedCss('');
+        setInjectedJs('');
+      } else {
+        throw new Error("Could not retrieve content");
+      }
+    } catch (err) {
+      console.error(err);
+      setFetchError("Failed to load website. Some sites block proxies. Try pasting the HTML source directly.");
+      setHtmlContent(`
+        <html>
+          <body style="font-family: sans-serif; padding: 2rem; text-align: center; color: #cbd5e1; background: #0f172a;">
+            <h1>⚠️ Could not load website</h1>
+            <p>The site "${targetUrl}" restricts external access.</p>
+            <p><strong>Tip:</strong> You can right-click 'View Source' on the real website, copy the code, and ask me to analyze it directly!</p>
+          </body>
+        </html>
+      `);
+    } finally {
+      setIsUrlLoading(false);
+    }
+  };
+
+  // Initial Load
+  useEffect(() => {
+    loadUrl(DEFAULT_URL);
+  }, []);
+
+  const activeSite: MockSite = useMemo(() => {
+    return {
+      url: currentUrl,
+      title: 'Active Page',
+      html: htmlContent
+    };
+  }, [currentUrl, htmlContent]);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -243,11 +148,10 @@ const App: React.FC = () => {
     setIsLoading(true);
 
     try {
-      // PASS THE LIVE HTML CONTEXT
       const result = await generateModificationCode(
         newMessage.text || "Analyze page.", 
         tempImage || undefined, 
-        activeSite.html, // <--- MAGIC: AI reads the code directly
+        activeSite.html, 
         modType,
         appMode
       );
@@ -264,7 +168,6 @@ const App: React.FC = () => {
       setProjects(prev => ({ ...prev, [projectId]: newProject }));
       setCurrentProjectId(projectId);
 
-      // Auto-inject CSS/JS if in Generator mode
       if (appMode === AppMode.GENERATOR) {
         let css = '';
         let js = '';
@@ -280,7 +183,7 @@ const App: React.FC = () => {
       const botMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        text: result.explanation + (appMode === AppMode.GENERATOR ? "\n\n✅ I have injected the changes into the page preview." : ""),
+        text: result.explanation + (appMode === AppMode.GENERATOR ? "\n\n✅ I have injected the changes into the preview." : ""),
         projectId: projectId
       };
 
@@ -302,25 +205,12 @@ const App: React.FC = () => {
   return (
     <div className="flex h-screen bg-gray-900 overflow-hidden font-sans">
       
-      {/* LEFT: Browser Simulation (The "Webpage") */}
+      {/* LEFT: Real Browser Preview */}
       <div className="flex-1 flex flex-col h-full relative z-0 transition-all duration-300 p-4">
-        {/* Site Switcher / Address Bar Simulator */}
         <div className="mb-4 flex justify-between items-center">
-           <div className="flex space-x-2">
-             {Object.keys(MOCK_SITES).map(key => (
-               <button
-                key={key}
-                onClick={() => { setActiveSiteKey(key); setInjectedCss(''); setInjectedJs(''); }}
-                className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all flex items-center ${
-                  activeSiteKey === key
-                  ? 'bg-gray-700 text-white shadow-sm ring-1 ring-gray-600'
-                  : 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'
-                }`}
-               >
-                 <Globe size={12} className="mr-2" />
-                 {MOCK_SITES[key].title}
-               </button>
-             ))}
+           <div className="flex items-center space-x-2 text-gray-400 text-xs">
+             <Globe size={14} className="text-brand-400" />
+             <span className="font-mono">Proxy Mode Active</span>
            </div>
            
            <button 
@@ -336,18 +226,20 @@ const App: React.FC = () => {
             site={activeSite} 
             injectedCss={injectedCss} 
             injectedJs={injectedJs}
-            onUrlChange={() => {}} 
+            onNavigate={loadUrl}
+            isLoading={isUrlLoading}
           />
           
-          {/* Floating 'Connected' Badge */}
-          <div className="absolute top-4 right-4 bg-green-500/90 backdrop-blur text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg flex items-center z-50 pointer-events-none">
-             <div className="w-2 h-2 bg-white rounded-full animate-pulse mr-2"></div>
-             AI Connected
-          </div>
+          {fetchError && (
+             <div className="absolute top-16 left-4 right-4 bg-red-900/90 text-red-100 p-3 rounded-lg text-sm flex items-center shadow-lg backdrop-blur border border-red-700">
+                <AlertTriangle size={16} className="mr-2 shrink-0" />
+                {fetchError}
+             </div>
+          )}
         </div>
       </div>
 
-      {/* RIGHT: Modder Sidebar (The "Tool") */}
+      {/* RIGHT: Modder Sidebar */}
       <div className={`
         fixed inset-y-0 right-0 z-20 w-full md:w-[450px] lg:w-[500px] bg-gray-950 border-l border-gray-800 shadow-2xl transform transition-transform duration-300 flex flex-col
         ${sidebarOpen ? 'translate-x-0' : 'translate-x-full'} md:relative md:translate-x-0
@@ -401,7 +293,7 @@ const App: React.FC = () => {
                  <div className="bg-gray-800 rounded-2xl rounded-tl-none px-4 py-3 border border-gray-700">
                     <div className="flex items-center space-x-2">
                        <Loader2 size={16} className="animate-spin text-brand-500" />
-                       <span className="text-sm text-gray-400">Reading page code & analyzing...</span>
+                       <span className="text-sm text-gray-400">Analyzing page source...</span>
                     </div>
                  </div>
               </div>
@@ -409,7 +301,7 @@ const App: React.FC = () => {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Active Project Viewer (Accordion style overlay) */}
+          {/* Active Project Viewer */}
           {activeProject && (
              <div className="h-64 border-t border-gray-800 bg-gray-900 flex flex-col shrink-0">
                 <div className="px-4 py-2 bg-gray-800 flex justify-between items-center text-xs">
@@ -457,7 +349,7 @@ const App: React.FC = () => {
                    }
                  }}
                  placeholder={appMode === AppMode.INSPECTOR 
-                   ? "How does this work?" 
+                   ? "Explain how this works..." 
                    : "Modify this page..."}
                  className="flex-1 bg-gray-800 text-white placeholder-gray-500 border border-gray-700 rounded-lg py-2.5 px-3 focus:outline-none focus:ring-1 focus:ring-brand-500 resize-none h-10 min-h-[40px] max-h-32 text-sm"
                />
