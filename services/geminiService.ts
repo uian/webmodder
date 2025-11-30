@@ -24,6 +24,7 @@ RULES:
 3. For Chrome Extensions, include 'manifest.json'.
 4. For UserScripts, include metadata headers.
 5. Make your code robust and production-ready.
+6. **FALLBACK RULE:** If a requested file type cannot be generated properly (e.g., it is a binary format or restricted), OR if an error occurs, YOU MUST generate it as a plain text file with a ".txt" extension (language: "plaintext").
 `;
 
 const INSPECTOR_INSTRUCTION = `
@@ -55,6 +56,30 @@ OUTPUT FORMAT:
 }
 `;
 
+// Define the schema outside to reuse it
+const responseSchema = {
+  type: Type.OBJECT,
+  properties: {
+    explanation: { type: Type.STRING },
+    files: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          name: { type: Type.STRING },
+          language: { 
+            type: Type.STRING, 
+            enum: ["javascript", "json", "css", "html", "markdown", "plaintext"] 
+          },
+          content: { type: Type.STRING },
+        },
+        required: ["name", "language", "content"],
+      },
+    },
+  },
+  required: ["explanation", "files"],
+};
+
 export const generateModificationCode = async (
   prompt: string,
   imageBase64: string | undefined,
@@ -70,12 +95,12 @@ export const generateModificationCode = async (
   const ai = new GoogleGenAI({ apiKey });
 
   const isInspector = appMode === AppMode.INSPECTOR;
-  const systemInstruction = isInspector ? INSPECTOR_INSTRUCTION : GENERATOR_INSTRUCTION;
+  const baseInstruction = isInspector ? INSPECTOR_INSTRUCTION : GENERATOR_INSTRUCTION;
 
   // We truncate pageContext if it's massive, but Gemini 2.5 has a huge window so ~50k chars is fine.
   const contextSnippet = pageContext ? pageContext.substring(0, 100000) : "No page context available.";
 
-  const fullPrompt = `
+  const basePrompt = `
     USER REQUEST: ${prompt}
     CURRENT APP MODE: ${appMode}
     ${!isInspector ? `TARGET OUTPUT TYPE: ${modType}` : ''}
@@ -87,19 +112,34 @@ export const generateModificationCode = async (
     ${imageBase64 ? "Note: User also attached a screenshot for visual context." : ""}
   `;
 
-  const parts: any[] = [{ text: fullPrompt }];
-  
-  if (imageBase64) {
-    parts.push({
-      inlineData: {
-        mimeType: "image/png",
-        data: imageBase64,
-      },
-    });
-  }
+  const makeCall = async (isRetry: boolean) => {
+    let systemInstruction = baseInstruction;
+    let finalPrompt = basePrompt;
 
-  try {
-    const response = await ai.models.generateContent({
+    if (isRetry) {
+      console.log("Retrying generation with .txt fallback...");
+      systemInstruction += `\n\nCRITICAL OVERRIDE: The previous attempt failed due to an error. 
+      YOU MUST GENERATE ALL FILES WITH A '.txt' EXTENSION AND LANGUAGE 'plaintext'. 
+      DO NOT use .js, .css, or .json. Simply output the content as plain text. 
+      Example: 'script.js.txt' or 'styles.css.txt'.`;
+      
+      finalPrompt += `\n\nPREVIOUS ERROR: An internal error occurred. 
+      Please regenerate the response using ONLY .txt files (language: plaintext) for the file outputs. 
+      Do not attempt to generate executable code files if they are causing errors.`;
+    }
+
+    const parts: any[] = [{ text: finalPrompt }];
+    
+    if (imageBase64) {
+      parts.push({
+        inlineData: {
+          mimeType: "image/png",
+          data: imageBase64,
+        },
+      });
+    }
+
+    return await ai.models.generateContent({
       model: "gemini-2.5-flash",
       contents: {
         role: "user",
@@ -108,37 +148,28 @@ export const generateModificationCode = async (
       config: {
         systemInstruction: systemInstruction,
         responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            explanation: { type: Type.STRING },
-            files: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  name: { type: Type.STRING },
-                  language: { type: Type.STRING, enum: ["javascript", "json", "css", "html", "markdown"] },
-                  content: { type: Type.STRING },
-                },
-                required: ["name", "language", "content"],
-              },
-            },
-          },
-          required: ["explanation", "files"],
-        },
+        responseSchema: responseSchema,
       },
     });
+  };
 
-    if (!response.text) {
-      throw new Error("No response from AI");
+  try {
+    // Attempt 1: Standard generation
+    const response = await makeCall(false);
+    if (!response.text) throw new Error("No response from AI");
+    return JSON.parse(response.text);
+
+  } catch (error: any) {
+    console.warn("Primary generation failed. Retrying with plaintext fallback.", error);
+
+    try {
+      // Attempt 2: Fallback to .txt
+      const response = await makeCall(true);
+      if (!response.text) throw new Error("No response from AI during retry");
+      return JSON.parse(response.text);
+    } catch (retryError) {
+      console.error("Gemini API Error (Retry failed):", retryError);
+      throw new Error("Failed to generate code (Internal Error). Please try again.");
     }
-
-    const result = JSON.parse(response.text);
-    return result;
-
-  } catch (error) {
-    console.error("Gemini API Error:", error);
-    throw new Error("Failed to generate code. Please try again.");
   }
 };

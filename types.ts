@@ -11,7 +11,7 @@ export enum AppMode {
 
 export interface GeneratedFile {
   name: string;
-  language: 'json' | 'javascript' | 'css' | 'html' | 'markdown';
+  language: 'json' | 'javascript' | 'css' | 'html' | 'markdown' | 'plaintext';
   content: string;
 }
 

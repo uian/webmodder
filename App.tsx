@@ -49,11 +49,25 @@ const App: React.FC = () => {
   }, [messages]);
 
   // --- Real Website Fetching Logic ---
+  const fetchWithProxy = async (targetUrl: string, proxyService: 'allorigins' | 'corsproxy') => {
+    if (proxyService === 'allorigins') {
+      const response = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`);
+      if (!response.ok) throw new Error("Network response was not ok");
+      const data = await response.json();
+      return data.contents;
+    } else {
+      // Fallback proxy
+      const response = await fetch(`https://corsproxy.io/?${encodeURIComponent(targetUrl)}`);
+      if (!response.ok) throw new Error("Network response was not ok");
+      return await response.text();
+    }
+  };
+
   const loadUrl = async (url: string) => {
     if (!url) return;
     
     // Basic URL formatting
-    let targetUrl = url;
+    let targetUrl = url.trim();
     if (!targetUrl.startsWith('http')) {
       targetUrl = 'https://' + targetUrl;
     }
@@ -63,15 +77,18 @@ const App: React.FC = () => {
     setCurrentUrl(targetUrl);
 
     try {
-      // Use a CORS proxy to fetch the HTML content
-      const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`;
-      const response = await fetch(proxyUrl);
-      const data = await response.json();
+      // Try primary proxy
+      let processedHtml = '';
+      try {
+        processedHtml = await fetchWithProxy(targetUrl, 'allorigins');
+      } catch (e) {
+        console.warn("Primary proxy failed, trying fallback...", e);
+        processedHtml = await fetchWithProxy(targetUrl, 'corsproxy');
+      }
       
-      if (data.contents) {
+      if (processedHtml) {
         // We must inject a <base> tag so relative links (images, css) work
         const baseTag = `<base href="${targetUrl}" target="_self" />`;
-        let processedHtml = data.contents;
         
         // Simple injection of base tag into head
         if (processedHtml.includes('<head>')) {
@@ -85,17 +102,17 @@ const App: React.FC = () => {
         setInjectedCss('');
         setInjectedJs('');
       } else {
-        throw new Error("Could not retrieve content");
+        throw new Error("Empty content received");
       }
     } catch (err) {
       console.error(err);
-      setFetchError("Failed to load website. Some sites block proxies. Try pasting the HTML source directly.");
+      setFetchError("Failed to load website. It might block proxies. Try pasting source code directly.");
       setHtmlContent(`
         <html>
           <body style="font-family: sans-serif; padding: 2rem; text-align: center; color: #cbd5e1; background: #0f172a;">
             <h1>⚠️ Could not load website</h1>
-            <p>The site "${targetUrl}" restricts external access.</p>
-            <p><strong>Tip:</strong> You can right-click 'View Source' on the real website, copy the code, and ask me to analyze it directly!</p>
+            <p>The site "${targetUrl}" could not be accessed.</p>
+            <p style="color: #94a3b8; margin-top: 1rem; font-size: 0.9em;">Error: Failed to fetch via CORS proxy.</p>
           </body>
         </html>
       `);
