@@ -1,18 +1,20 @@
 # Stage 1: Build the React application
-# We use node:20-bookworm (Debian 12) to ensure maximum compatibility with glibc
-# and build tools needed for node modules.
+# We use node:20-bookworm (Debian 12) for maximum stability
 FROM node:20-bookworm AS builder
 
 WORKDIR /app
+
+# Configure NPM to use the public registry to avoid mirror timeouts
+RUN npm config set registry https://registry.npmjs.org/
 
 # Copy package.json
 COPY package.json ./
 
 # Install dependencies
-# --legacy-peer-deps: Prevents failures due to strict version conflicts
-# --no-audit: Speeds up install
-# --no-fund: Reduces output noise
-RUN npm install --legacy-peer-deps --no-audit --no-fund
+# --legacy-peer-deps: Fixes potential peer dependency conflicts
+# --no-audit --no-fund: Speeds up the process
+# --verbose: Helps debug if it fails again
+RUN npm install --legacy-peer-deps --no-audit --no-fund --verbose
 
 # Copy source code
 COPY . .
