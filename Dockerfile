@@ -1,16 +1,18 @@
 # Stage 1: Build the React application
-# We use node:20 (Debian-based) instead of Alpine to ensure full compatibility 
-# with npm packages that require native build tools (like esbuild/vite).
-FROM node:20 AS builder
+# We use node:20-bookworm (Debian 12) to ensure maximum compatibility with glibc
+# and build tools needed for node modules.
+FROM node:20-bookworm AS builder
 
 WORKDIR /app
 
 # Copy package.json
-# We do not copy package-lock.json to ensure dependencies resolve correctly for the Linux architecture
 COPY package.json ./
 
-# Install dependencies (much more reliable on Debian than Alpine)
-RUN npm install
+# Install dependencies
+# --legacy-peer-deps: Prevents failures due to strict version conflicts
+# --no-audit: Speeds up install
+# --no-fund: Reduces output noise
+RUN npm install --legacy-peer-deps --no-audit --no-fund
 
 # Copy source code
 COPY . .
@@ -29,7 +31,6 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 COPY entrypoint.sh.txt /docker-entrypoint.d/env.sh
 
 # Make it executable (critical)
-# Since the source is a text file, we ensure the destination is treated as a script
 RUN chmod +x /docker-entrypoint.d/env.sh
 
 EXPOSE 80
