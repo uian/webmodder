@@ -1,18 +1,15 @@
 # Stage 1: Build the React application
-FROM node:20-alpine AS builder
+# We use node:20 (Debian-based) instead of Alpine to ensure full compatibility 
+# with npm packages that require native build tools (like esbuild/vite).
+FROM node:20 AS builder
 
 WORKDIR /app
 
-# Install build dependencies (python3, make, g++) to prevent npm install failures for native modules
-# This is critical for fixing "exit code: 1" during npm install on Alpine
-RUN apk add --no-cache python3 make g++
-
-# Copy ONLY package.json first.
-# We INTENTIONALLY exclude package-lock.json here to force a fresh install.
-# This fixes issues where a Windows/Mac lockfile fails on Linux.
+# Copy package.json
+# We do not copy package-lock.json to ensure dependencies resolve correctly for the Linux architecture
 COPY package.json ./
 
-# Install dependencies
+# Install dependencies (much more reliable on Debian than Alpine)
 RUN npm install
 
 # Copy source code
