@@ -1,38 +1,20 @@
-# Stage 1: Build the React application
-# We use node:20-bookworm (Debian 12) for maximum stability
-FROM node:20-bookworm AS builder
+# -----------------------------------------------------------------
+# FINAL STAGE: Serve via Nginx
+# -----------------------------------------------------------------
+# We no longer build inside Docker. 
+# The GitHub Action builds the app and passes the 'dist' folder.
+# This eliminates "npm install" errors inside containers completely.
 
-WORKDIR /app
-
-# Configure NPM to use the public registry to avoid mirror timeouts
-RUN npm config set registry https://registry.npmjs.org/
-
-# Copy package.json
-COPY package.json ./
-
-# Install dependencies
-# --legacy-peer-deps: Fixes potential peer dependency conflicts
-# --no-audit --no-fund: Speeds up the process
-# --verbose: Helps debug if it fails again
-RUN npm install --legacy-peer-deps --no-audit --no-fund --verbose
-
-# Copy source code
-COPY . .
-
-# Build the app
-RUN npm run build
-
-# Stage 2: Serve with Nginx
 FROM nginx:alpine
 
-# Copy built assets from builder stage
-COPY --from=builder /app/dist /usr/share/nginx/html
+# Copy the ALREADY BUILT artifacts from the GitHub Actions runner
+# (The runner creates the 'dist' folder before running docker build)
+COPY dist /usr/share/nginx/html
 
-# Copy the environment injection script.
-# We explicitly copy 'entrypoint.sh.txt' to the Nginx startup directory.
+# Copy the environment injection script
 COPY entrypoint.sh.txt /docker-entrypoint.d/env.sh
 
-# Make it executable (critical)
+# Make it executable
 RUN chmod +x /docker-entrypoint.d/env.sh
 
 EXPOSE 80
